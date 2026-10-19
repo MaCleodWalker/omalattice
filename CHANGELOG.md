@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Add toggleable 1:1 two-dimensional touchpad panning with natural-scroll
+  support, nearest-window diagonal snapping, and mostly straight directional
+  flicks. Preserve axis-based snap gestures when continuous panning is disabled.
+- Clear gesture displacement before release focus callbacks, preventing hover
+  focus from snapping back to the starting window.
+
 - Keep the overview below higher-priority shell surfaces so the screensaver
   can appear above it.
 - Make the touchpad swipes follow the fingers: three-finger swipes slide the

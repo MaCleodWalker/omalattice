@@ -179,6 +179,7 @@ BarWidget {
       rows: [
         { key: "hover_focus_delay", label: "Hover focus delay", note: "0 keeps follow-mouse immediate", to: 1000, step: 25, suffix: " ms" },
         { key: "gesture_fingers", label: "Swipe fingers", from: 3, to: 5, step: 1 },
+        { key: "three_finger_pan", label: "Continuous 2D pan", note: "Pan freely; diagonals snap to the nearest window, straight flicks go to the next", toggle: true },
         { key: "overview_gesture_fingers", label: "Overview swipe fingers", note: "Swipe up opens, down closes; 0 is off", from: 0, to: 5, step: 1 },
         { key: "workspace_swipe", label: "Workspace swipe configured", toggle: true }
       ]

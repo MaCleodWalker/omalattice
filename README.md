@@ -176,24 +176,27 @@ If `hyprctl configerrors` prints nothing, the manual setup is ready.
 | Exit overview | `Super+Escape` |
 | Open the overview (follows the fingers) | Four-finger swipe up |
 | Close the overview (follows the fingers) | Four-finger swipe down |
-| Slide the grid up/down to a window | Three-finger swipe up/down |
-| Slide the grid left/right to a window | Three-finger swipe left/right |
+| Pan the grid or overview freely in 2D | Three-finger swipe |
 
 The focus, move and resize bindings retain Omarchy's normal behavior whenever
 the active window is not using Omalattice. `Super+Enter` selects the overview
 window while overview is active and otherwise keeps Omarchy's terminal action.
-Swipes follow your fingers. A three-finger swipe slides the whole grid as you
-move, and when you lift your fingers it settles on the nearest window, or on the
-next one after a short flick; the last window in a row or column gives a little
-and springs back. A four-finger swipe up grows the overview out of your windows
+Three-finger swipes pan the grid 1:1 on both axes, including diagonally. On
+release, the nearest window to the viewport center is focused. Quick swipes
+advance to the next window only when one axis moves at least twice as far as
+the other; diagonal pans always settle on the nearest window in 2D.
+The **Continuous 2D pan** input toggle (`three_finger_pan`, default `true`)
+switches back to the original axis-based snap gestures when disabled, without
+a Hyprland restart. A four-finger swipe up grows the overview out of your windows
 as far as your fingers go, and a swipe down shrinks it back into them; lifting
 past half way, or flicking, finishes the move. `swipe_distance` sets how far to
-swipe for one window or the whole overview (default: `300`, the same as
-Hyprland's workspace swipe; lower is faster). In an open overview a three-finger
-swipe moves the selection one window instead.
+swipe for one window in snap mode or the whole overview (default: `300`, the
+same as Hyprland's workspace swipe; lower is faster). In continuous mode an open
+overview pans on both axes and selects the nearest window on release.
 
-Three-finger swipes work while Omalattice is active. Vertical swipes always do
-this. All swipes follow your touchpad's `natural_scroll` setting: with it on,
+Three-finger swipes work while Omalattice is active. In snap mode vertical
+swipes remain registered outside the layout but do not act there.
+All swipes follow your touchpad's `natural_scroll` setting: with it on,
 the content follows your fingers, so swiping up reveals the window below; with
 it off, the grid moves the other way. A horizontal swipe is normally taken by
 Hyprland's workspace swipe, so on an Omalattice workspace Omalattice unsets
@@ -295,6 +298,8 @@ Edit [`layout/config.lua`](layout/config.lua) (the defaults) to change:
 - `hover_focus_delay`: milliseconds the mouse must rest on a window before it
   takes focus (default: `150`; `0` disables the delay)
 - `gesture_fingers`: finger count for the grid swipes (default: `3`)
+- `three_finger_pan`: continuous two-axis panning, including diagonals
+  (default: `true`; `false` restores axis-based snap gestures; applies live)
 - `swipe_distance`: touchpad travel, in Hyprland's swipe units, that slides the
   grid one window or fully opens the overview (default: `300`; lower is faster)
 - `overview_gesture_fingers`: finger count for the swipe up/down that opens and

@@ -113,7 +113,7 @@ function M.new_state()
         height_step_by_id = {},
         focused_id = nil,
         observed_active_id = nil,
-        camera = { col = 0, row = 0 },
+        camera = { col = 0, row = 0, offset_x = 0, offset_y = 0 },
         overview = false,
         overview_scroll = { x = 0, y = 0 },
         overview_follow = false,
@@ -174,6 +174,8 @@ function M.sync(state, ids, active_id, config)
         local focused = state.positions[state.focused_id]
         state.camera.col = focused.col
         state.camera.row = focused.row
+        state.camera.offset_x = 0
+        state.camera.offset_y = 0
         if state.overview then state.overview_follow = true end
     end
 
@@ -284,6 +286,8 @@ function M.follow(state)
     if not focused then return false end
     state.camera.col = focused.col
     state.camera.row = focused.row
+    state.camera.offset_x = 0
+    state.camera.offset_y = 0
     return true
 end
 
@@ -302,6 +306,18 @@ function M.pan(state, direction)
     if not vector then return false end
     state.camera.col = state.camera.col + vector.dc
     state.camera.row = state.camera.row + vector.dr
+    return true
+end
+
+local function is_finite(value)
+    return type(value) == "number" and value == value
+        and value ~= math.huge and value ~= -math.huge
+end
+
+function M.pan_by(state, dx, dy)
+    if not is_finite(dx) or not is_finite(dy) then return false end
+    state.camera.offset_x = state.camera.offset_x + dx
+    state.camera.offset_y = state.camera.offset_y + dy
     return true
 end
 
@@ -386,14 +402,36 @@ function M.placements(state, area, config)
         local size = dimensions[id]
 
         placements[id] = {
-            x = column_centers[position.col] - (size.w / 2),
-            y = row_centers[position.row] - (size.h / 2),
+            x = column_centers[position.col] - (size.w / 2) + (state.camera.offset_x or 0),
+            y = row_centers[position.row] - (size.h / 2) + (state.camera.offset_y or 0),
             w = size.w,
             h = size.h,
         }
     end
 
     return placements
+end
+
+function M.nearest_window(state, area, config)
+    local placements = state.overview
+        and M.overview_placements(state, area, config)
+        or M.placements(state, area, config)
+    local center_x = area.x + area.w / 2
+    local center_y = area.y + area.h / 2
+    local nearest_id, nearest_distance
+
+    for id, box in pairs(placements) do
+        local drag = not state.overview and state.drag
+        local dx = box.x - (drag and drag.x or 0) + box.w / 2 - center_x
+        local dy = box.y - (drag and drag.y or 0) + box.h / 2 - center_y
+        local distance = (dx * dx) + (dy * dy)
+        if nearest_distance == nil or distance < nearest_distance
+            or (distance == nearest_distance and tostring(id) < tostring(nearest_id)) then
+            nearest_id, nearest_distance = id, distance
+        end
+    end
+
+    return nearest_id
 end
 
 -- Dense grid used by the overview: empty rows and columns are skipped, and a
@@ -579,6 +617,11 @@ function M.edge_scroll_velocity(point, area, config)
         return 0
     end
     return axis(point.x, area.x, area.w), axis(point.y, area.y, area.h)
+end
+
+function M.pan_overview_by(state, dx, dy, area, config)
+    if not is_finite(dx) or not is_finite(dy) then return false end
+    return M.scroll_overview_by(state, -dx, -dy, area, config)
 end
 
 -- Thumb start and size, as fractions of the track, for each scrollable axis.

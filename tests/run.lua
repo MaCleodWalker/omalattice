@@ -531,6 +531,60 @@ test("manual camera pan survives ordinary synchronization", function()
     equal(state.camera.row, 1)
 end)
 
+test("continuous pan moves placements by the exact delta on both axes", function()
+    local state = fresh({ "A" }, "A")
+    local area = { x = 0, y = 0, w = 1000, h = 800 }
+    local before = core.placements(state, area, config).A
+
+    assert(core.pan_by(state, 23.5, -11.25))
+    local after = core.placements(state, area, config).A
+    assert(math.abs(after.x - before.x - 23.5) < 1e-6, "horizontal pan delta")
+    assert(math.abs(after.y - before.y + 11.25) < 1e-6, "vertical pan delta")
+end)
+
+test("ordinary pan release snaps the nearest window to center", function()
+    local state = fresh({ "A", "B" }, "A")
+    local area = { x = 0, y = 0, w = 1000, h = 800 }
+    core.pan_by(state, -700, 0)
+    equal(core.nearest_window(state, area, config), "B")
+    state.focused_id = core.nearest_window(state, area, config)
+    assert(core.follow(state))
+    equal(state.camera.offset_x, 0)
+    equal(state.camera.col, core.position_of(state, "B").col)
+end)
+
+test("following focus resets the continuous pan offset", function()
+    local state = fresh({ "A" }, "A")
+    core.pan_by(state, 20, -9)
+    assert(core.follow(state))
+    equal(state.camera.offset_x, 0)
+    equal(state.camera.offset_y, 0)
+end)
+
+test("overview gesture pan moves content 1:1 on both axes", function()
+    local ids = {}
+    local state = core.new_state()
+    for i = 1, 25 do
+        ids[i] = tostring(i)
+    end
+    core.sync(state, ids, "1", config)
+    for i, id in ipairs(ids) do
+        state.positions[id] = { col = (i - 1) % 5, row = math.floor((i - 1) / 5) }
+    end
+
+    local area = { x = 0, y = 0, w = 100, h = 100 }
+    core.set_overview(state, true)
+    state.overview_follow = false
+    assert(core.pan_overview_by(state, -20, -30, area, config))
+    local before = core.overview_placements(state, area, config)["1"]
+    assert(core.pan_overview_by(state, 5, -7, area, config))
+    local after = core.overview_placements(state, area, config)["1"]
+    equal(state.overview_scroll.x, 15, "horizontal overview scroll")
+    equal(state.overview_scroll.y, 37, "vertical overview scroll")
+    assert(math.abs(after.x - before.x - 5) < 1e-6, "horizontal overview pan delta")
+    assert(math.abs(after.y - before.y + 7) < 1e-6, "vertical overview pan delta")
+end)
+
 test("closing a window closes the gap it leaves", function()
     local state = fresh({ "A", "B", "C" }, "B")
     core.sync(state, { "A", "C" }, "C", config)

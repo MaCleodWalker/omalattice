@@ -126,6 +126,16 @@ registered.provider.recalculate(ctx)
 assert(a.placed and b.placed, "recalculate did not place every target")
 assert(a.placed.x < b.placed.x, "new targets should initially extend right")
 
+local initial_x, initial_y = a.placed.x, a.placed.y
+assert(registered.provider.layout_msg(ctx, "pan-by 17.5 -8.25") == true, "continuous pan command was rejected")
+registered.provider.recalculate(ctx)
+assert(math.abs(a.placed.x - initial_x - 17.5) < 1e-6, "horizontal pan delta was not preserved")
+assert(math.abs(a.placed.y - initial_y + 8.25) < 1e-6, "vertical pan delta was not preserved")
+assert(type(registered.provider.layout_msg(ctx, "pan-by nan 2")) == "string",
+    "invalid continuous pan delta should return an error")
+assert(registered.provider.layout_msg(ctx, "snap-nearest") == true, "nearest-window snap command was rejected")
+assert(dispatched[#dispatched].kind == "focus", "nearest-window snap did not focus a window")
+
 local response = registered.provider.layout_msg(ctx, "focus right")
 assert(response == true, "focus command was rejected")
 assert(dispatched[#dispatched].kind == "focus", "focus command did not dispatch")
