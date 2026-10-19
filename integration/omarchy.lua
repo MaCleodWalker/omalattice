@@ -329,9 +329,6 @@ function sync_horizontal_gestures()
         if want and not workspace_swipe_suspended then
             unset(workspace_gesture)
             workspace_swipe_suspended = true
-        elseif not want and workspace_swipe_suspended then
-            hl.gesture(workspace_gesture)
-            workspace_swipe_suspended = false
         end
     end
 
@@ -343,6 +340,13 @@ function sync_horizontal_gestures()
         set_registered("pan", two_axis_pan_gesture, false)
         set_registered("vertical", vertical_focus_gesture, true)
         set_registered("horizontal", horizontal_focus_gesture, not swap_workspace_swipe or want)
+    end
+
+    -- Remove the generic swipe before restoring the workspace gesture, or
+    -- Hyprland rejects the horizontal gesture as shadowed.
+    if swap_workspace_swipe and not want and workspace_swipe_suspended then
+        hl.gesture(workspace_gesture)
+        workspace_swipe_suspended = false
     end
 end
 
