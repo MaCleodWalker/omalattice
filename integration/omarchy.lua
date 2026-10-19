@@ -139,6 +139,7 @@ replace("SUPER + CTRL + UP", "Pan 2D canvas up", "pan up")
 replace("SUPER + CTRL + DOWN", "Pan 2D canvas down", "pan down")
 
 local GESTURE_FINGERS = config.gesture_fingers or 3
+local three_finger_pan = config.three_finger_pan ~= false
 
 -- With natural scrolling the content follows the fingers, so swiping up
 -- reveals the window below. The touchpad setting is read on every swipe.
@@ -187,7 +188,61 @@ local function drag_gesture(axis)
     }
 end
 
-hl.gesture({ fingers = GESTURE_FINGERS, direction = "vertical", action = drag_gesture("y") })
+local function continuous_pan_gesture()
+    local active, sign = false, 1
+    local total_x, total_y, last_time, peak_velocity, quick_axis = 0, 0, nil, 0, nil
+    local flick_threshold = 0.004
+    return {
+        start = function()
+            local api = layout_gestures()
+            active = is_omalattice_active() and api ~= nil and api.pan_begin() == true
+            sign = natural_scroll() and 1 or -1
+            total_x, total_y, last_time, peak_velocity, quick_axis = 0, 0, nil, 0, nil
+        end,
+        update = function(event)
+            if not active then return end
+            local api = layout_gestures()
+            if api then
+                local dx = gesture_delta(event, "x") * sign
+                local dy = gesture_delta(event, "y") * sign
+                total_x, total_y = total_x + dx, total_y + dy
+                local time = tonumber(event.time_ms)
+                local distance = tonumber(config.swipe_distance) or 300
+                if time and last_time and time > last_time then
+                    local elapsed = time - last_time
+                    local vx = math.abs(dx / elapsed / distance)
+                    local vy = math.abs(dy / elapsed / distance)
+                    local velocity = math.max(vx, vy)
+                    if velocity > peak_velocity then
+                        peak_velocity = velocity
+                        quick_axis = vx >= vy and "x" or "y"
+                    end
+                end
+                if time then last_time = time end
+                api.pan_update(dx, dy, time)
+            end
+        end,
+        finish = function(event)
+            if not active then return end
+            active = false
+            local cancelled = type(event) == "table" and event.cancelled == true
+            local api = layout_gestures()
+            local direction
+            if peak_velocity >= flick_threshold then
+                -- Content moving left reveals the window to the right.
+                -- Diagonal pans settle in 2D instead of selecting an axis neighbor.
+                if quick_axis == "x" and total_x ~= 0
+                    and math.abs(total_x) >= 2 * math.abs(total_y) then
+                    direction = total_x < 0 and "right" or "left"
+                elseif quick_axis == "y" and total_y ~= 0
+                    and math.abs(total_y) >= 2 * math.abs(total_x) then
+                    direction = total_y < 0 and "down" or "up"
+                end
+            end
+            if api then api.pan_end(cancelled, direction) end
+        end,
+    }
+end
 
 -- A swipe up opens the overview and a swipe down closes it, following the
 -- fingers. They only act on an Omalattice workspace, and are skipped when the
@@ -235,38 +290,67 @@ end
 -- grid swipe while an Omalattice workspace is active, then restore it. Hyprland
 -- cannot report which gestures exist and logs an error for removing a missing
 -- one, so this only happens when config.workspace_swipe says there is one.
-local focus_gestures = {
-    { fingers = GESTURE_FINGERS, direction = "horizontal", action = drag_gesture("x") },
+local vertical_focus_gesture = {
+    fingers = GESTURE_FINGERS, direction = "vertical", action = drag_gesture("y"),
+}
+local horizontal_focus_gesture = {
+    fingers = GESTURE_FINGERS, direction = "horizontal", action = drag_gesture("x"),
+}
+local two_axis_pan_gesture = {
+    fingers = GESTURE_FINGERS, direction = "swipe", action = continuous_pan_gesture(),
 }
 local workspace_gesture = { fingers = GESTURE_FINGERS, direction = "horizontal", action = "workspace" }
 local swap_workspace_swipe = config.workspace_swipe ~= false
 local horizontal_focus = false
+local workspace_swipe_suspended = false
+local registered = {}
 
 local function unset(gesture)
     hl.gesture({ fingers = gesture.fingers, direction = gesture.direction, action = "unset" })
 end
 
-function sync_horizontal_gestures()
-    if not swap_workspace_swipe then return end
+local function set_registered(name, gesture, enabled)
+    if enabled == (registered[name] == true) then return end
+    if enabled then
+        hl.gesture(gesture)
+    else
+        unset(gesture)
+    end
+    registered[name] = enabled
+end
 
+function sync_horizontal_gestures()
     local ok, workspace = pcall(hl.get_active_workspace)
     local want = ok and safe_field(workspace, "tiled_layout") == workspaces.LAYOUT
         and not safe_field(workspace, "special") or false
-    if want == horizontal_focus then return end
     horizontal_focus = want
 
-    if want then
-        unset(workspace_gesture)
-        for _, gesture in ipairs(focus_gestures) do hl.gesture(gesture) end
+    if swap_workspace_swipe then
+        if want and not workspace_swipe_suspended then
+            unset(workspace_gesture)
+            workspace_swipe_suspended = true
+        elseif not want and workspace_swipe_suspended then
+            hl.gesture(workspace_gesture)
+            workspace_swipe_suspended = false
+        end
+    end
+
+    if three_finger_pan then
+        set_registered("vertical", vertical_focus_gesture, false)
+        set_registered("horizontal", horizontal_focus_gesture, false)
+        set_registered("pan", two_axis_pan_gesture, not swap_workspace_swipe or want)
     else
-        for _, gesture in ipairs(focus_gestures) do unset(gesture) end
-        hl.gesture(workspace_gesture)
+        set_registered("pan", two_axis_pan_gesture, false)
+        set_registered("vertical", vertical_focus_gesture, true)
+        set_registered("horizontal", horizontal_focus_gesture, not swap_workspace_swipe or want)
     end
 end
 
-if not swap_workspace_swipe then
-    for _, gesture in ipairs(focus_gestures) do hl.gesture(gesture) end
+local function set_three_finger_pan(enabled)
+    three_finger_pan = enabled ~= false
+    sync_horizontal_gestures()
 end
+_G.__omalattice_configure_three_finger_pan = set_three_finger_pan
 
 -- Wheel and touchpad scrolling pan a scrollable overview. Scroll binds consume
 -- the event, so they are only enabled while the focused workspace shows its

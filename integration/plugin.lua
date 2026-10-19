@@ -29,6 +29,8 @@ local function apply_workspaces()
     -- announces it, so layout-dependent state is refreshed afterwards.
     local resync = rawget(_G, "__omalattice_resync_later")
     if resync then resync() end
+    local configure_pan = rawget(_G, "__omalattice_configure_three_finger_pan")
+    if configure_pan then configure_pan(config.three_finger_pan ~= false) end
 end
 
 if rawget(_G, "__omalattice_plugin_loaded") then

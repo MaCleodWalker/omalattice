@@ -120,7 +120,16 @@ _G.hl = {
 hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
 gestures = {}
 
+-- Preserve coverage of the original snap mode with continuous pan disabled.
+local original_dofile = dofile
+dofile = function(path)
+    local result = original_dofile(path)
+    if path == root .. "/layout/config.lua" then result.three_finger_pan = false end
+    return result
+end
 assert(loadfile(root .. "/integration/omarchy.lua"))()
+dofile = original_dofile
+table.sort(gestures, function(a, b) return a.fingers < b.fingers end)
 assert(terminal_action_creations == 1, "terminal binding should be captured during integration setup")
 assert(#gestures == 2, "vertical grid and overview gestures were not installed")
 assert(gestures[1].fingers == 3 and gestures[1].direction == "vertical", "wrong vertical grid gesture")
@@ -329,7 +338,10 @@ assert(gesture_errors == 0, "gesture swaps must never remove a missing gesture")
 local real_dofile = dofile
 _G.dofile = function(path)
     local loaded = real_dofile(path)
-    if path:match("config%.lua$") then loaded.workspace_swipe = false end
+    if path:match("config%.lua$") then
+        loaded.workspace_swipe = false
+        loaded.three_finger_pan = false
+    end
     return loaded
 end
 _G.__omalattice_omarchy_integrated = nil

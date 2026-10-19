@@ -16,6 +16,7 @@ local SPEC = {
     gesture_fingers = { kind = "integer", min = 3, max = 5 },
     overview_gesture_fingers = { kind = "integer", min = 0, max = 5 },
     swipe_distance = { kind = "integer", min = 50, max = 2000 },
+    three_finger_pan = { kind = "boolean" },
     workspace_swipe = { kind = "boolean" },
     overview_thumbnails = { kind = "boolean" },
     overview_autoscroll_speed = { kind = "number", min = 0, max = 5000 },

@@ -8,6 +8,8 @@ test:
 	lua tests/run.lua
 	lua tests/hyprland_adapter.lua
 	lua tests/omarchy_integration.lua
+	lua tests/pan_direction.lua
+	lua tests/pan_lifecycle.lua
 	lua tests/hover.lua
 	lua tests/settings.lua
 	lua tests/persist.lua

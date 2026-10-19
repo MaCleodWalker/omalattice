@@ -26,6 +26,9 @@ return {
     -- faster. Hyprland's own workspace swipe uses 300.
     swipe_distance = 300,
 
+    -- Pan the grid and overview freely instead of using axis-based snap gestures.
+    three_finger_pan = true,
+
     -- Number of fingers for the touchpad swipe that opens the overview (up)
     -- and closes it (down) on an Omalattice workspace. Set to 0 to disable.
     -- It must differ from `gesture_fingers`.

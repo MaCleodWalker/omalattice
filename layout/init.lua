@@ -429,6 +429,28 @@ local function layout_msg(ctx, message)
         overview_changed()
     elseif command == "scroll" then
         if state.overview then core.scroll_overview(state, argument, ctx.area, config) end
+    elseif command == "pan-by" then
+        local dx, dy = tonumber(argument), tonumber(extra)
+        if not dx or not dy or dx ~= dx or dy ~= dy
+            or dx == math.huge or dx == -math.huge or dy == math.huge or dy == -math.huge then
+            return "omalattice: pan-by expects finite x and y deltas"
+        end
+        if state.overview then
+            core.pan_overview_by(state, dx, dy, ctx.area, config)
+        else
+            core.pan_by(state, dx, dy)
+        end
+    elseif command == "snap-nearest" then
+        local id = core.nearest_window(state, ctx.area, config)
+        if id then
+            state.focused_id = id
+            if state.overview then
+                state.overview_follow = true
+            else
+                core.follow(state)
+                focus_descriptor(descriptors[id])
+            end
+        end
     elseif command == "resize" and argument == "width" then
         if extra ~= "grow" and extra ~= "shrink" then
             return "omalattice: resize width expects grow or shrink"
@@ -440,7 +462,7 @@ local function layout_msg(ctx, message)
         end
         core.resize_height(state, config, extra == "grow" and 1 or -1)
     else
-        return "omalattice: expected focus/move/pan/scroll <direction>, resize width/height grow/shrink, or center"
+        return "omalattice: expected focus/move/pan/scroll <direction>, pan-by <x> <y>, snap-nearest, resize width/height grow/shrink, or center"
     end
 
     return true
@@ -601,6 +623,81 @@ local function drag_end(cancelled)
     hl.dispatch(hl.dsp.layout("refresh"))
 end
 
+local function pan_begin()
+    local state = active_state()
+    if not state or gesture ~= nil then return false end
+
+    gesture = {
+        kind = "pan",
+        state = state,
+        x = 0,
+        y = 0,
+        scroll_x = state.overview_scroll.x,
+        scroll_y = state.overview_scroll.y,
+    }
+    if not state.overview then
+        state.drag = { x = 0, y = 0 }
+        pause_animations()
+    end
+    return true
+end
+
+local function pan_update(dx, dy)
+    local g = gesture
+    local function is_finite(value)
+        return type(value) == "number" and value == value
+            and value ~= math.huge and value ~= -math.huge
+    end
+    if not g or g.kind ~= "pan" or not is_finite(dx) or not is_finite(dy) then return end
+
+    g.x = g.x + dx
+    g.y = g.y + dy
+    if g.state.overview then
+        core.pan_overview_by(g.state, dx, dy, g.state.view_area, config)
+    else
+        g.state.drag = { x = -g.x, y = -g.y }
+    end
+    hl.dispatch(hl.dsp.layout("refresh"))
+end
+
+local function pan_end(cancelled, quick_direction)
+    local g = gesture
+    if not g or g.kind ~= "pan" then return end
+    gesture = nil
+
+    if g.state.overview then
+        if cancelled then
+            g.state.overview_scroll.x = g.scroll_x
+            g.state.overview_scroll.y = g.scroll_y
+        else
+            local target = quick_direction and core.focus(g.state, quick_direction)
+                or core.nearest_window(g.state, g.state.view_area, config)
+            if target then
+                g.state.focused_id = target
+                g.state.overview_follow = true
+            end
+        end
+    else
+        local target
+        if not cancelled then
+            if quick_direction then
+                target = core.neighbor(g.state, quick_direction)
+            else
+                target = core.nearest_window(g.state, g.state.area, config)
+            end
+        end
+        -- Focus callbacks must see the settled grid before warping the cursor.
+        g.state.drag = nil
+        resume_animations()
+        if target then
+            g.state.focused_id = target
+            core.follow(g.state)
+            focus_descriptor(g.state.descriptors and g.state.descriptors[target])
+        end
+    end
+    hl.dispatch(hl.dsp.layout("refresh"))
+end
+
 -- `direction` is "up" or "down", from the start of the swipe.
 local function overview_begin(direction)
     local state = active_state()
@@ -650,6 +747,9 @@ local function overview_end(cancelled)
 end
 
 _G.__omalattice_gestures = {
+    pan_begin = pan_begin,
+    pan_update = pan_update,
+    pan_end = pan_end,
     drag_begin = drag_begin,
     drag_update = drag_update,
     drag_end = drag_end,
