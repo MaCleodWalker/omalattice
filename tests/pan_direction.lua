@@ -5,7 +5,7 @@ local original_dofile = dofile
 local core = original_dofile(root .. "/layout/core.lua")
 local config = original_dofile(root .. "/layout/config.lua")
 config.three_finger_pan = true
-config.workspace_swipe = false
+config.workspace_swipe = true
 config.overview_gesture_fingers = 0
 
 -- Isolate this replay from the installed plugin's user-settings file.
@@ -19,7 +19,9 @@ end
 
 local natural = true
 local gesture
-local registered = {}
+local registered = { ["3:horizontal"] = { action = "workspace" } }
+local workspace_layout = "lua:omalattice"
+local handlers = {}
 local state
 local release_direction
 local release_target
@@ -42,13 +44,17 @@ _G.__omalattice_gestures = {
 _G.o = { bind = function() end }
 _G.hl = {
     get_active_window = function() return { layout = { name = "lua:omalattice" } } end,
-    get_active_workspace = function() return { id = 3, tiled_layout = "lua:omalattice" } end,
+    get_active_workspace = function() return { id = 3, tiled_layout = workspace_layout } end,
     get_config = function(key)
         assert(key == "input.touchpad.natural_scroll")
         return natural
     end,
     unbind = function() end,
-    on = function() return true end,
+    on = function(event, callback)
+        handlers[event] = handlers[event] or {}
+        table.insert(handlers[event], callback)
+        return true
+    end,
     bind = function() return { set_enabled = function() end } end,
     gesture = function(spec)
         local key = tostring(spec.fingers) .. ":" .. spec.direction
@@ -58,6 +64,10 @@ _G.hl = {
             return
         end
         assert(not registered[key], "duplicate gesture registration")
+        if spec.direction == "horizontal" then
+            assert(not registered[tostring(spec.fingers) .. ":swipe"],
+                "workspace swipe is shadowed by the still-registered pan gesture")
+        end
         registered[key] = spec
         if spec.direction == "swipe" and type(spec.action) == "table" then gesture = spec.action end
     end,
@@ -147,6 +157,17 @@ _G.__omalattice_configure_three_finger_pan(true)
 _G.__omalattice_configure_three_finger_pan(true)
 assert(registered["3:swipe"] and not registered["3:horizontal"] and not registered["3:vertical"],
     "enabling pan must replace axis-based gestures without duplicates")
+for _, layout in ipairs({ "scrolling", "lua:omalattice", "dwindle", "lua:omalattice", "scrolling" }) do
+    workspace_layout = layout
+    for _, callback in ipairs(handlers["workspace.active"]) do callback() end
+    local lattice = layout == "lua:omalattice"
+    assert((registered["3:swipe"] ~= nil) == lattice, "pan registration leaked across workspaces")
+    assert((registered["3:horizontal"] ~= nil) == not lattice,
+        "workspace swipe was not restored outside Omalattice")
+    if not lattice then
+        assert(registered["3:horizontal"].action == "workspace", "restored wrong horizontal action")
+    end
+end
 dofile = original_dofile
 assert(#failures == 0, table.concat(failures, "\n"))
 print("ok - actual pan callback moves content and releases in the scroll direction: " .. root)

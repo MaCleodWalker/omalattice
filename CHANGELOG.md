@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## v0.4.0 - 2026-10-19
+
+- Restore three-finger workspace swipes outside Omalattice by removing its
+  generic pan gesture before registering the horizontal workspace gesture.
 
 - Add toggleable 1:1 two-dimensional touchpad panning with natural-scroll
   support, nearest-window diagonal snapping, and mostly straight directional

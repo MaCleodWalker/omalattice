@@ -40,7 +40,7 @@ Originally forked from [Hyprscroll2D](https://github.com/kirollosatef/hyprscroll
 
 ## Compatibility
 
-`v0.3.0` targets Omarchy Quattro and Hyprland `0.56.x` (live-tested on Hyprland `0.56.2`). It is opt-in per workspace: nothing changes until you rotate a workspace into the layout with `Super+L`.
+`v0.4.0` targets Omarchy Quattro and Hyprland `0.56.x` (live-tested on Hyprland `0.56.2`). It is opt-in per workspace: nothing changes until you rotate a workspace into the layout with `Super+L`.
 
 Because Omalattice runs on Hyprland's Lua custom-layout API and Omarchy's Quickshell service layer, it loads at runtime without editing your Hyprland config files and stays active across config reloads. Other Lua-configured Hyprland setups can also load the core layout engine and provide their own bindings.
 

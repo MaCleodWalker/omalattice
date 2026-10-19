@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.macleodwalker.omalattice",
   "name": "Omalattice",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "author": "MaCleod Walker",
   "license": "MIT",
   "description": "True 2D spatial scrolling layout for Omarchy & Hyprland with a drag-and-drop live thumbnail minimap, 1:1 finger-following touchpad swipes, 4-way edge peeks, persistent workspace grids, and a live bar settings menu.",
