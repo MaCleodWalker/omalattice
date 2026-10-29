@@ -37,6 +37,8 @@ if rawget(_G, "__omalattice_plugin_loaded") then
     -- A reload picks up edited settings without restarting Hyprland.
     local reload = rawget(_G, "__omalattice_reload_config")
     if reload then reload(config) end
+    local reload_integration = rawget(_G, "__omalattice_reload_integration")
+    if reload_integration then reload_integration(config) end
     apply_workspaces()
     return true
 end

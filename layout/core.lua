@@ -434,6 +434,62 @@ function M.nearest_window(state, area, config)
     return nearest_id
 end
 
+function M.visible_areas(state, area, config)
+    local placements = state.overview
+        and M.overview_placements(state, area, config)
+        or M.placements(state, area, config)
+    local drag = not state.overview and state.drag
+    local visible = {}
+    for id, box in pairs(placements) do
+        local x = box.x - (drag and drag.x or 0)
+        local y = box.y - (drag and drag.y or 0)
+        local width = math.max(0, math.min(x + box.w, area.x + area.w) - math.max(x, area.x))
+        local height = math.max(0, math.min(y + box.h, area.y + area.h) - math.max(y, area.y))
+        visible[id] = width * height
+    end
+    return visible
+end
+
+function M.pan_at_start(dx, dy)
+    return math.max(math.abs(dx), math.abs(dy)) < 8
+end
+
+-- Content moves opposite to the direction in which new windows are revealed.
+function M.most_revealed_window(state, area, config, initial_visibility, dx, dy)
+    local origin = state.positions[state.focused_id]
+    if not origin or M.pan_at_start(dx, dy) then return state.focused_id end
+    local horizontal = math.abs(dx) >= 2 * math.abs(dy)
+    local vertical = math.abs(dy) >= 2 * math.abs(dx)
+    local visible = M.visible_areas(state, area, config)
+    local best, best_gain = state.focused_id, 0
+    local nearest, nearest_distance
+    for _, id in ipairs(state.ids) do
+        local position = state.positions[id]
+        if position and initial_visibility[id] ~= nil then
+            local col, row = position.col - origin.col, position.row - origin.row
+            local aligned
+            if horizontal then
+                aligned = col * dx < 0 and row == 0
+            elseif vertical then
+                aligned = row * dy < 0 and col == 0
+            else
+                aligned = col * dx < 0 and row * dy < 0
+            end
+            local gain = (visible[id] or 0) - initial_visibility[id]
+            local distance = col * col + row * row
+            if aligned and (nearest_distance == nil or distance < nearest_distance
+                or distance == nearest_distance and tostring(id) < tostring(nearest)) then
+                nearest, nearest_distance = id, distance
+            end
+            if aligned and (gain > best_gain
+                or gain > 0 and gain == best_gain and tostring(id) < tostring(best)) then
+                best, best_gain = id, gain
+            end
+        end
+    end
+    return best_gain > 0 and best or nearest or state.focused_id
+end
+
 -- Dense grid used by the overview: empty rows and columns are skipped, and a
 -- cell never shrinks below the configured fraction of the viewport. When the
 -- cells no longer fit, the content is larger than the viewport and scrolls.

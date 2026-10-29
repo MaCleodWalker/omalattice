@@ -1,6 +1,6 @@
 local source = debug.getinfo(1, "S").source:sub(2)
 local tests_dir = source:match("^(.*)/[^/]+$") or "tests"
-local root = tests_dir:match("^(.*)/tests$") or "."
+local root = arg[1] or tests_dir:match("^(.*)/tests$") or "."
 local original_loadfile, original_open = loadfile, io.open
 local core = assert(original_loadfile(root .. "/layout/core.lua"))()
 local config = assert(original_loadfile(root .. "/layout/config.lua"))()
@@ -116,7 +116,16 @@ local api = assert(_G.__omalattice_gestures)
 local hover = assert(_G.__omalattice_hover)
 for _, col in ipairs({ -1, 1 }) do
     for _, row in ipairs({ -1, 1 }) do
-        for _, mode in ipairs({ "nearest", "flick", "cancelled" }) do
+        for _, mode in ipairs({
+            "visibility-gain", "hidden-neighbor", "full-pan", "flick", "cancelled", "no-motion",
+            "reverse-partway", "return-to-start", "return-after-flick",
+        }) do
+            config.peek_x, config.peek_y = 96, 32
+            config.gap_x, config.gap_y = 12, 12
+            if mode == "hidden-neighbor" then
+                config.peek_x, config.peek_y = 0, 0
+                config.gap_x, config.gap_y = 48, 48
+            end
             for _, item in ipairs(items) do item.window.active = item == items[1] end
             active = items[1].window
             focus_history = {}
@@ -130,15 +139,26 @@ for _, col in ipairs({ -1, 1 }) do
             local a, d = items[1].placed, items[4].placed
             local dx = a.x + a.w / 2 - d.x - d.w / 2
             local dy = a.y + a.h / 2 - d.y - d.h / 2
+            if mode == "visibility-gain" then dx, dy = dx * 0.15, dy * 0.15 end
+            if mode == "hidden-neighbor" then dx, dy = -col * 24, -row * 24 end
+            if mode == "no-motion" then dx, dy = 0, 0 end
             if mode == "flick" then dy = 0 end
             hover.poll()
             assert(api.pan_begin())
             api.pan_update(dx, dy)
+            if mode == "reverse-partway" then api.pan_update(-dx / 2, -dy / 2) end
+            if mode == "return-to-start" or mode == "return-after-flick" then
+                api.pan_update(-dx + 2, -dy + 2)
+            end
             hover.poll()
-            local direction = mode == "flick" and (col > 0 and "right" or "left") or nil
+            local direction = (mode == "flick" or mode == "return-after-flick")
+                and (col > 0 and "right" or "left") or nil
             api.pan_end(mode == "cancelled", direction)
-            local expected = mode == "cancelled" and "A" or mode == "flick" and "B" or "D"
-            assert(active.stable_id == expected, "release did not focus " .. expected)
+            local expected = (mode == "cancelled" or mode == "no-motion" or mode == "return-to-start"
+                or mode == "return-after-flick") and "A"
+                or mode == "flick" and "B" or "D"
+            assert(active.stable_id == expected,
+                mode .. " release did not focus " .. expected .. "; got " .. active.stable_id)
             for _ = 1, 4 do hover.poll() end
             assert(active.stable_id == expected,
                 mode .. " release bounced from " .. expected .. " to " .. active.stable_id

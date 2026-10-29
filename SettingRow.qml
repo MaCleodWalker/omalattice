@@ -2,7 +2,7 @@ import QtQuick
 import qs.Ui
 import qs.Commons
 
-// One setting in the menu: a label with a -/+ stepper, or an on/off switch.
+// One setting in the menu: a label with an editable number and stepper, or an on/off switch.
 Item {
   id: root
 
@@ -27,6 +27,16 @@ Item {
     var next = Math.max(root.from * root.displayScale, Math.min(root.to * root.displayScale, shown + direction * root.step))
     root.edited(Math.round(next / root.displayScale * 10000) / 10000)
   }
+
+  function commitValue(text) {
+    if (text.trim() === "" || !/^\d+$/.test(text)) return
+    var shown = Number(text)
+    var next = Math.max(root.from * root.displayScale,
+      Math.min(root.to * root.displayScale, shown))
+    root.edited(Math.round(next / root.displayScale * 10000) / 10000)
+  }
+
+  readonly property string displayValue: String(Math.round(root.value * root.displayScale))
 
   implicitHeight: Math.max(labelColumn.implicitHeight, Style.space(28))
 
@@ -87,11 +97,30 @@ Item {
         onClicked: root.stepBy(-1)
       }
 
-      Text {
+      TextInput {
+        id: valueInput
         width: Style.space(52)
         anchors.verticalCenter: parent.verticalCenter
         horizontalAlignment: Text.AlignHCenter
-        text: Math.round(root.value * root.displayScale) + root.suffix
+        text: root.displayValue
+        color: root.foreground
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+        selectByMouse: true
+        inputMethodHints: Qt.ImhDigitsOnly
+        validator: IntValidator {
+          bottom: Math.ceil(root.from * root.displayScale)
+          top: Math.floor(root.to * root.displayScale)
+        }
+        onEditingFinished: {
+          if (acceptableInput) root.commitValue(text)
+          text = Qt.binding(() => root.displayValue)
+        }
+      }
+
+      Text {
+        anchors.verticalCenter: parent.verticalCenter
+        text: root.suffix
         color: root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall

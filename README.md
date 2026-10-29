@@ -28,7 +28,7 @@ Originally forked from [Hyprscroll2D](https://github.com/kirollosatef/hyprscroll
   - Large workspaces never crush thumbnails below a readable minimum size (`overview_min_width` / `overview_min_height`); instead, the minimap scrolls smoothly via mouse wheel, touchpad, arrow selection, or viewport-edge autoscroll.
 
 - **Fluid 1:1 Finger-Following Touchpad Gestures**
-  - **Three-finger swipes** (horizontal and vertical) slide the 2D grid directly under your fingers, settling onto the nearest window or flicking to the next with soft boundary spring-back at the ends of a row or column.
+  - **Three-finger swipes** slide the 2D grid directly under your fingers, settling onto the window with the largest visibility gain in the pan direction or flicking to the next with soft boundary spring-back at the ends of a row or column.
   - **Four-finger vertical swipes** smoothly grow the live overview out of your windows as you swipe up and shrink it back into place as you swipe down.
   - Automatically swaps Hyprland's horizontal workspace swipe for 2D grid sliding only while an Omalattice workspace is focused, and respects your touchpad's `natural_scroll` setting.
 
@@ -182,9 +182,17 @@ The focus, move and resize bindings retain Omarchy's normal behavior whenever
 the active window is not using Omalattice. `Super+Enter` selects the overview
 window while overview is active and otherwise keeps Omarchy's terminal action.
 Three-finger swipes pan the grid 1:1 on both axes, including diagonally. On
-release, the nearest window to the viewport center is focused. Quick swipes
+release, slow pans focus the window whose visible area increased the most in
+the gesture's direction. If neither axis moves at least twice as far as the
+other, only diagonal windows are considered; otherwise, windows in the same
+row or column are considered. If no candidate gains visibility yet, the nearest
+window in that direction is selected instead of snapping back. Focus stays put
+only if there is no window in that direction, the gesture is cancelled, or
+you release within 8 pixels on both axes of the gesture's starting position.
+Swiping back near the start therefore undoes a pan, but merely reversing
+direction partway does not. Quick swipes
 advance to the next window only when one axis moves at least twice as far as
-the other; diagonal pans always settle on the nearest window in 2D.
+the other; diagonal pans use the direction-and-visibility rule.
 The **Continuous 2D pan** input toggle (`three_finger_pan`, default `true`)
 switches back to the original axis-based snap gestures when disabled, without
 a Hyprland restart. A four-finger swipe up grows the overview out of your windows
@@ -192,7 +200,7 @@ as far as your fingers go, and a swipe down shrinks it back into them; lifting
 past half way, or flicking, finishes the move. `swipe_distance` sets how far to
 swipe for one window in snap mode or the whole overview (default: `300`, the
 same as Hyprland's workspace swipe; lower is faster). In continuous mode an open
-overview pans on both axes and selects the nearest window on release.
+overview pans on both axes and uses the same direction-and-visibility rule on release.
 
 Three-finger swipes work while Omalattice is active. In snap mode vertical
 swipes remain registered outside the layout but do not act there.
@@ -273,12 +281,15 @@ title, and cells wait up to 45 seconds for slow-starting apps. Delete
 The plugin adds an Omalattice widget to the Omarchy bar. Add it from the bar
 settings, then click it to change the peeks, gaps, size presets, overview and
 input options with `-`/`+` steppers and switches. Changes are saved to
-`~/.config/omalattice/config.lua` and applied to the layout straight away,
-except the input options (`hover_focus_delay`, `gesture_fingers`,
-`overview_gesture_fingers` and `workspace_swipe`), which need a Hyprland restart. The file only holds values
-that differ from the defaults, survives plugin updates and can be edited by
-hand; `OMALATTICE_CONFIG` overrides its location. It applies to plugin
-installs, not the config installer.
+`~/.config/omalattice/config.lua` and applied to the layout straight away.
+**Focus peeks on hover** controls whether resting on a visible neighboring
+window changes focus; when disabled, click a peek to focus it.
+`gesture_fingers`, `overview_gesture_fingers` and `workspace_swipe` take effect
+after clicking **Reload Hyprland** in the widget menu. This reloads the
+configuration without ending the session. The file only holds values that
+differ from the defaults, survives plugin updates and can be edited by hand;
+`OMALATTICE_CONFIG` overrides its location. It applies to plugin installs, not
+the config installer.
 
 ### Config file
 

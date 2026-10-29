@@ -307,6 +307,12 @@ assert(find_gesture("workspace") and not find_gesture("grid"), "workspace swipe 
 activate_workspace({ id = 3, tiled_layout = "lua:omalattice", special = false })
 assert(not find_gesture("workspace"), "workspace swipe should yield on an Omalattice workspace")
 assert(find_gesture("grid"), "the horizontal grid swipe was not installed")
+local reload_config = assert(loadfile(root .. "/layout/config.lua"))()
+reload_config.three_finger_pan = false
+assert(_G.__omalattice_reload_integration(reload_config), "integration settings did not reload")
+assert(gesture_errors == 0, "reloading active gestures tried to remove a missing workspace swipe")
+assert(not find_gesture("workspace") and find_gesture("grid"),
+    "reloading while Omalattice is active changed the gesture swap")
 active_layout = "lua:omalattice"
 swipe(find_gesture("grid"), { { x = -20, y = 0 } })
 assert(dispatched[#dispatched].message == "focus left", "left swipe sent the wrong layout command")
@@ -321,6 +327,26 @@ assert(#live_gestures == 3, "repeated sync should not duplicate gestures")
 activate_workspace({ id = 4, tiled_layout = "scrolling", special = false })
 assert(find_gesture("workspace") and not find_gesture("grid"), "workspace swipe was not restored")
 assert(#live_gestures == 3, "gesture swap leaked a gesture")
+
+assert(_G.__omalattice_reload_integration({
+    gesture_fingers = 4,
+    overview_gesture_fingers = 5,
+    workspace_swipe = false,
+    three_finger_pan = false,
+}), "integration settings did not reload")
+assert(find_gesture("grid") and find_gesture("grid").fingers == 4,
+    "reloaded finger count was not applied to grid swipes")
+assert(find_gesture("workspace") and #live_gestures == 4,
+    "reloaded workspace swipe setting did not restore the native workspace gesture")
+local overview_gesture_found = false
+for _, gesture in ipairs(live_gestures) do
+    if gesture.fingers == 5 and gesture.direction == "vertical" then overview_gesture_found = true end
+end
+assert(overview_gesture_found, "reloaded overview finger count was not applied")
+local default_integration_config = assert(loadfile(root .. "/layout/config.lua"))()
+default_integration_config.three_finger_pan = false
+assert(_G.__omalattice_reload_integration(default_integration_config),
+    "integration defaults did not restore after the reload test")
 
 -- Rotating the layout refreshes the gestures once the toggle has applied.
 timers = {}
