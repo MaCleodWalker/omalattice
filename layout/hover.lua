@@ -53,9 +53,8 @@ local function keyboard_grabbed()
 end
 
 function M.start(config, is_overview_active)
-    local delay = config.hover_focus_delay
-    if type(delay) ~= "number" or delay <= 0 then return nil end
-
+    local delay = tonumber(config.hover_focus_delay) or 0
+    local focus_peeks = config.hover_focus_peeks ~= false
     local timer = nil
     local original_follow_mouse = nil
     local candidate, candidate_ticks, last_point = nil, 0, nil
@@ -65,6 +64,7 @@ function M.start(config, is_overview_active)
     end
 
     local function poll()
+        if not focus_peeks or delay <= 0 then return reset() end
         local ok, point = pcall(hl.get_cursor_pos)
         if not ok or not point then return reset() end
         local moved = not last_point or last_point.x ~= point.x or last_point.y ~= point.y
@@ -112,10 +112,10 @@ function M.start(config, is_overview_active)
 
     -- Hyprland's own hover focus is replaced only when the user left it at the
     -- default, so a deliberate follow_mouse setting is respected.
-    local function set_native_follow(enabled)
+    local function set_native_follow(enabled, force)
         if enabled and not original_follow_mouse then
             local ok, value = pcall(hl.get_config, "input.follow_mouse")
-            if ok and value == FOLLOW_MOUSE_ALWAYS then
+            if ok and (value == FOLLOW_MOUSE_ALWAYS or force and value ~= FOLLOW_MOUSE_CLICK) then
                 original_follow_mouse = value
                 hl.config({ input = { follow_mouse = FOLLOW_MOUSE_CLICK } })
             end
@@ -129,9 +129,16 @@ function M.start(config, is_overview_active)
         local ok, workspace = pcall(hl.get_active_workspace)
         local active = ok and safe_field(workspace, "tiled_layout") == LAYOUT
             and not safe_field(workspace, "special")
-        set_native_follow(active)
+        set_native_follow(active and (delay > 0 or not focus_peeks), not focus_peeks)
         -- Without the native override the pointer cannot be debounced.
-        set_polling(active and original_follow_mouse ~= nil)
+        set_polling(active and focus_peeks and delay > 0 and original_follow_mouse ~= nil)
+    end
+
+    local function set_settings(value, allow_peek_focus)
+        delay = tonumber(value) or 0
+        focus_peeks = allow_peek_focus ~= false
+        reset()
+        sync()
     end
 
     pcall(hl.on, "workspace.active", sync)
@@ -143,7 +150,7 @@ function M.start(config, is_overview_active)
     end)
     sync()
 
-    return { sync = sync, poll = poll }
+    return { sync = sync, poll = poll, set_settings = set_settings }
 end
 
 return M

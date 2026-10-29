@@ -542,7 +542,7 @@ test("continuous pan moves placements by the exact delta on both axes", function
     assert(math.abs(after.y - before.y + 11.25) < 1e-6, "vertical pan delta")
 end)
 
-test("ordinary pan release snaps the nearest window to center", function()
+test("nearest window remains available for explicit center snapping", function()
     local state = fresh({ "A", "B" }, "A")
     local area = { x = 0, y = 0, w = 1000, h = 800 }
     core.pan_by(state, -700, 0)
@@ -551,6 +551,60 @@ test("ordinary pan release snaps the nearest window to center", function()
     assert(core.follow(state))
     equal(state.camera.offset_x, 0)
     equal(state.camera.col, core.position_of(state, "B").col)
+end)
+
+test("slow pan selects a gaining neighbor before it reaches the viewport center", function()
+    local state = fresh({ "A", "B" }, "A")
+    local area = { x = 10, y = 20, w = 1000, h = 800 }
+    local initial = core.visible_areas(state, area, config)
+    core.pan_by(state, -40, 0)
+    equal(core.nearest_window(state, area, config), "A")
+    equal(core.most_revealed_window(state, area, config, initial, -40, 0), "B")
+    equal(core.most_revealed_window(state, area, config, initial, 40, 0), "A")
+    equal(core.most_revealed_window(state, area, config, initial, 0, 0), "A")
+end)
+
+test("slow diagonal pans select diagonal gain rather than larger axis gains in all quadrants", function()
+    local area = { x = 10, y = 20, w = 1000, h = 800 }
+    for _, col in ipairs({ -1, 1 }) do
+        for _, row in ipairs({ -1, 1 }) do
+            local state = fresh({ "A", "B", "C", "D" }, "A")
+            state.positions = {
+                A = { col = 0, row = 0 }, B = { col = col, row = 0 },
+                C = { col = 0, row = row }, D = { col = col, row = row },
+            }
+            local initial = core.visible_areas(state, area, config)
+            local dx, dy = -col * 60, -row * 60
+            state.drag = { x = -dx, y = -dy }
+            local visible = core.visible_areas(state, area, config)
+            assert(visible.B - initial.B > visible.D - initial.D, "axis gain must exceed diagonal gain")
+            assert(visible.C - initial.C > visible.D - initial.D, "axis gain must exceed diagonal gain")
+            equal(core.most_revealed_window(state, area, config, initial, dx, dy), "D")
+            equal(core.most_revealed_window(state, area, config, initial, dx, dy / 2), "B")
+            equal(core.most_revealed_window(state, area, config, initial, dx / 2, dy), "C")
+        end
+    end
+end)
+
+test("slow pan compares net visibility gain among all windows in the chosen direction", function()
+    local state = fresh({ "A", "B", "C" }, "A")
+    local area = { x = 0, y = 0, w = 1000, h = 800 }
+    local initial = core.visible_areas(state, area, config)
+    core.pan_by(state, -1500, 0)
+    equal(core.most_revealed_window(state, area, config, initial, -1500, 0), "C")
+    core.pan_by(state, 1500, 0)
+    equal(core.most_revealed_window(state, area, config, initial, 0, 0), "A")
+end)
+
+test("pan intent advances without visibility gain but ignores the return-to-start zone", function()
+    local state = fresh({ "A", "B", "C" }, "A")
+    local area = { x = 0, y = 0, w = 1000, h = 800 }
+    local initial = core.visible_areas(state, area, config)
+    equal(core.most_revealed_window(state, area, config, initial, -7.99, 0), "A")
+    equal(core.most_revealed_window(state, area, config, initial, -8, 0), "B")
+    equal(core.most_revealed_window(state, area, config, initial, -24, 0), "B")
+    equal(core.most_revealed_window(state, area, config, initial, 24, 0), "A")
+    equal(core.most_revealed_window(state, area, config, initial, -24, -24), "A")
 end)
 
 test("following focus resets the continuous pan offset", function()
@@ -583,6 +637,26 @@ test("overview gesture pan moves content 1:1 on both axes", function()
     equal(state.overview_scroll.y, 37, "vertical overview scroll")
     assert(math.abs(after.x - before.x - 5) < 1e-6, "horizontal overview pan delta")
     assert(math.abs(after.y - before.y + 7) < 1e-6, "vertical overview pan delta")
+end)
+
+test("overview slow pan selects visibility gain and ignores motion clamped at an edge", function()
+    local ids = {}
+    for i = 1, 25 do ids[i] = tostring(i) end
+    local state = fresh(ids, "1")
+    for i, id in ipairs(ids) do
+        state.positions[id] = { col = (i - 1) % 5, row = math.floor((i - 1) / 5) }
+    end
+    local area = { x = 10, y = 20, w = 1000, h = 800 }
+    core.set_overview(state, true)
+    local initial = core.visible_areas(state, area, config)
+    core.pan_overview_by(state, 20, 20, area, config)
+    equal(core.most_revealed_window(state, area, config, initial, 20, 20), "1")
+    core.pan_overview_by(state, -150, -150, area, config)
+    local selected = core.most_revealed_window(state, area, config, initial, -150, -150)
+    local position = state.positions[selected]
+    assert(position.col > 0 and position.row > 0, "overview selection must follow the diagonal")
+    local visible = core.visible_areas(state, area, config)
+    assert(visible[selected] > initial[selected], "overview selection must gain visibility")
 end)
 
 test("closing a window closes the gap it leaves", function()

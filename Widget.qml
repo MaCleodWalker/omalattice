@@ -21,9 +21,10 @@ BarWidget {
   property string configPath: ""
   property bool pendingWrite: false
   property bool pendingApply: false
+  property string reloadError: ""
 
   readonly property bool ready: configPath !== ""
-  readonly property bool saving: saveTimer.running || writer.running || applier.running
+  readonly property bool saving: saveTimer.running || writer.running || applier.running || reloader.running
   readonly property string statusPath: Quickshell.env("XDG_RUNTIME_DIR") + "/omalattice-config"
   readonly property string bootstrapPath: decodeURIComponent(
     Qt.resolvedUrl("integration/plugin.lua").toString().replace(/^file:\/\//, "")
@@ -104,6 +105,13 @@ BarWidget {
     applier.running = true
   }
 
+  function reloadHyprland() {
+    if (!root.ready || root.saving || reloader.running) return
+    root.reloadError = ""
+    reloader.command = ["hyprctl", "reload"]
+    reloader.running = true
+  }
+
   Timer {
     id: saveTimer
     interval: 250
@@ -144,6 +152,20 @@ BarWidget {
     }
   }
 
+  Process {
+    id: reloader
+    onExited: (exitCode, exitStatus) => {
+      if (exitCode !== 0 || exitStatus !== 0) {
+        root.reloadError = "Reload failed (exit " + exitCode + ")"
+        console.warn("Omalattice: Hyprland reload failed (exit " + exitCode + ")")
+      }
+    }
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: if (text.trim()) console.warn("Omalattice:", text.trim())
+    }
+  }
+
   FileView {
     id: status
     path: root.statusPath
@@ -175,11 +197,12 @@ BarWidget {
       ]
     },
     {
-      title: "Input (restart Hyprland to apply)",
+      title: "Input",
       rows: [
         { key: "hover_focus_delay", label: "Hover focus delay", note: "0 keeps follow-mouse immediate", to: 1000, step: 25, suffix: " ms" },
+        { key: "hover_focus_peeks", label: "Focus peeks on hover", note: "Disable to focus peek windows only by clicking", toggle: true },
         { key: "gesture_fingers", label: "Swipe fingers", from: 3, to: 5, step: 1 },
-        { key: "three_finger_pan", label: "Continuous 2D pan", note: "Pan freely; diagonals snap to the nearest window, straight flicks go to the next", toggle: true },
+        { key: "three_finger_pan", label: "Continuous 2D pan", note: "Slow pans snap by direction and visibility gain; straight flicks go to the next", toggle: true },
         { key: "overview_gesture_fingers", label: "Overview swipe fingers", note: "Swipe up opens, down closes; 0 is off", from: 0, to: 5, step: 1 },
         { key: "workspace_swipe", label: "Workspace swipe configured", toggle: true }
       ]
@@ -301,6 +324,32 @@ BarWidget {
             fontFamily: root.bar.fontFamily
             onClicked: root.resetAll()
           }
+        }
+
+        Item {
+          width: parent.width
+          height: reloadButton.implicitHeight + Style.space(4)
+          visible: root.ready
+
+          Button {
+            id: reloadButton
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            text: reloader.running ? "Reloading…" : "Reload Hyprland"
+            fontFamily: root.bar.fontFamily
+            enabled: !root.saving && !reloader.running
+            onClicked: root.reloadHyprland()
+          }
+        }
+
+        Text {
+          width: parent.width
+          visible: root.reloadError !== ""
+          wrapMode: Text.WordWrap
+          text: root.reloadError
+          color: root.bar.foreground
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.bodySmall
         }
       }
     }

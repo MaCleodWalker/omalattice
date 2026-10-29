@@ -139,6 +139,7 @@ replace("SUPER + CTRL + UP", "Pan 2D canvas up", "pan up")
 replace("SUPER + CTRL + DOWN", "Pan 2D canvas down", "pan down")
 
 local GESTURE_FINGERS = config.gesture_fingers or 3
+local OVERVIEW_FINGERS = config.overview_gesture_fingers
 local three_finger_pan = config.three_finger_pan ~= false
 
 -- With natural scrolling the content follows the fingers, so swiping up
@@ -280,11 +281,6 @@ local function overview_gesture()
     }
 end
 
-local OVERVIEW_FINGERS = config.overview_gesture_fingers
-if type(OVERVIEW_FINGERS) == "number" and OVERVIEW_FINGERS > 0 and OVERVIEW_FINGERS ~= GESTURE_FINGERS then
-    hl.gesture({ fingers = OVERVIEW_FINGERS, direction = "vertical", action = overview_gesture() })
-end
-
 -- Hyprland has a single gesture per axis and no fallback, and a horizontal
 -- swipe is normally taken by the workspace swipe. Swap it for the horizontal
 -- grid swipe while an Omalattice workspace is active, then restore it. Hyprland
@@ -304,6 +300,7 @@ local swap_workspace_swipe = config.workspace_swipe ~= false
 local horizontal_focus = false
 local workspace_swipe_suspended = false
 local registered = {}
+local overview_gesture_registered = false
 
 local function unset(gesture)
     hl.gesture({ fingers = gesture.fingers, direction = gesture.direction, action = "unset" })
@@ -317,6 +314,54 @@ local function set_registered(name, gesture, enabled)
         unset(gesture)
     end
     registered[name] = enabled
+end
+
+local function sync_overview_gesture()
+    if overview_gesture_registered then
+        unset({ fingers = OVERVIEW_FINGERS, direction = "vertical" })
+        overview_gesture_registered = false
+    end
+    if type(OVERVIEW_FINGERS) == "number" and OVERVIEW_FINGERS > 0
+        and OVERVIEW_FINGERS ~= GESTURE_FINGERS then
+        hl.gesture({ fingers = OVERVIEW_FINGERS, direction = "vertical", action = overview_gesture() })
+        overview_gesture_registered = true
+    end
+end
+
+local function reload_integration(fresh)
+    if type(fresh) ~= "table" then return false end
+
+    for key, gesture in pairs({
+        vertical = vertical_focus_gesture,
+        horizontal = horizontal_focus_gesture,
+        pan = two_axis_pan_gesture,
+    }) do
+        if registered[key] then unset(gesture) end
+        registered[key] = false
+    end
+    if overview_gesture_registered then
+        unset({ fingers = OVERVIEW_FINGERS, direction = "vertical" })
+        overview_gesture_registered = false
+    end
+    for key in pairs(config) do config[key] = nil end
+    for key, value in pairs(fresh) do config[key] = value end
+    GESTURE_FINGERS = config.gesture_fingers or 3
+    OVERVIEW_FINGERS = config.overview_gesture_fingers
+    three_finger_pan = config.three_finger_pan ~= false
+    swap_workspace_swipe = config.workspace_swipe ~= false
+    vertical_focus_gesture = {
+        fingers = GESTURE_FINGERS, direction = "vertical", action = drag_gesture("y"),
+    }
+    horizontal_focus_gesture = {
+        fingers = GESTURE_FINGERS, direction = "horizontal", action = drag_gesture("x"),
+    }
+    two_axis_pan_gesture = {
+        fingers = GESTURE_FINGERS, direction = "swipe", action = continuous_pan_gesture(),
+    }
+    workspace_gesture = { fingers = GESTURE_FINGERS, direction = "horizontal", action = "workspace" }
+    sync_overview_gesture()
+    sync_horizontal_gestures()
+    return true
 end
 
 function sync_horizontal_gestures()
@@ -388,6 +433,7 @@ hl.on("workspace.active", sync_horizontal_gestures)
 hl.on("monitor.focused", sync_horizontal_gestures)
 hl.on("window.active", sync_horizontal_gestures)
 sync_horizontal_gestures()
+sync_overview_gesture()
 
 replace("SUPER + code:20", "Grow window width", "resize width grow", function()
     return hl.dsp.window.resize({ x = -100, y = 0, relative = true })
@@ -403,4 +449,5 @@ replace("SUPER + SHIFT + code:21", "Grow window height", "resize height grow", f
 end)
 
 _G.__omalattice_omarchy_integrated = true
+_G.__omalattice_reload_integration = reload_integration
 return true

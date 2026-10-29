@@ -51,13 +51,14 @@ _G.hl = {
 
 local hover = assert(loadfile(root .. "/layout/hover.lua"))()
 local function start(delay)
-    return hover.start({ hover_focus_delay = delay }, function() return overview end)
+    return hover.start({ hover_focus_delay = delay, hover_focus_peeks = true }, function() return overview end)
 end
 
-assert(start(0) == nil and start(nil) == nil, "a zero delay should leave follow_mouse alone")
+local instance = start(0)
+assert(instance and start(nil), "hover focus should remain reconfigurable when disabled")
 assert(follow_mouse == 1 and timer_callback == nil, "a disabled delay changed the input settings")
 
-local instance = start(100)
+instance.set_settings(100, true)
 assert(follow_mouse == 2 and timer.enabled, "hover focus did not take over follow_mouse")
 
 local function ticks(count)
@@ -163,6 +164,19 @@ assert(#dispatched == 0, "other layouts must not use hover focus")
 workspace = { id = 1, tiled_layout = "lua:omalattice", special = false }
 instance.sync()
 assert(follow_mouse == 2 and timer.enabled, "hover focus did not resume")
+instance.set_settings(0, true)
+assert(follow_mouse == 1 and timer.enabled == false, "disabling hover focus did not restore follow_mouse")
+instance.set_settings(100, true)
+assert(follow_mouse == 2 and timer.enabled, "re-enabling hover focus did not resume")
+instance.set_settings(100, false)
+assert(follow_mouse == 2 and timer.enabled == false,
+    "disabling peek hover focus should preserve click-to-focus without polling")
+dispatched = {}
+reset_cursor(1000)
+ticks(20)
+assert(#dispatched == 0, "disabled peek hover focus changed the focused window")
+instance.set_settings(100, true)
+assert(follow_mouse == 2 and timer.enabled, "enabling peek hover focus should resume polling")
 
 -- A deliberate follow_mouse setting is respected.
 workspace = { id = 2, tiled_layout = "dwindle", special = false }

@@ -13,6 +13,7 @@ local SPEC = {
     gap_x = { kind = "number", min = 0, max = 200 },
     gap_y = { kind = "number", min = 0, max = 200 },
     hover_focus_delay = { kind = "number", min = 0, max = 2000 },
+    hover_focus_peeks = { kind = "boolean" },
     gesture_fingers = { kind = "integer", min = 3, max = 5 },
     overview_gesture_fingers = { kind = "integer", min = 0, max = 5 },
     swipe_distance = { kind = "integer", min = 50, max = 2000 },

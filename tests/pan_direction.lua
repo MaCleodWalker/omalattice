@@ -25,10 +25,13 @@ local handlers = {}
 local state
 local release_direction
 local release_target
+local initial_visibility
 local area = { x = 0, y = 0, w = 1000, h = 800 }
 local function settle(direction)
     release_direction = direction
-    release_target = direction and core.focus(state, direction) or core.nearest_window(state, area, config)
+    release_target = direction and core.focus(state, direction)
+        or core.most_revealed_window(state, area, config, initial_visibility,
+            state.camera.offset_x, state.camera.offset_y)
 end
 local function reset_state()
     state = core.new_state()
@@ -37,7 +40,10 @@ end
 reset_state()
 
 _G.__omalattice_gestures = {
-    pan_begin = function() return true end,
+    pan_begin = function()
+        initial_visibility = core.visible_areas(state, area, config)
+        return true
+    end,
     pan_update = function(dx, dy) assert(core.pan_by(state, dx, dy)) end,
     pan_end = function(_, direction) settle(direction) end,
 }
@@ -144,7 +150,7 @@ for _, enabled in ipairs({ true, false }) do
             gesture.finish({ cancelled = false })
             if release_target ~= "D" or release_direction ~= nil then
                 table.insert(failures, string.format(
-                    "diagonal (%d,%d), natural_scroll=%s: expected nearest diagonal D; got %s via %s",
+                    "diagonal (%d,%d), natural_scroll=%s: expected visibility-gain diagonal D; got %s via %s",
                     col, row, tostring(enabled), tostring(release_target), tostring(release_direction)))
             end
         end

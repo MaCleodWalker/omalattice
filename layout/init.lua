@@ -625,7 +625,7 @@ end
 
 local function pan_begin()
     local state = active_state()
-    if not state or gesture ~= nil then return false end
+    if not state or not state.area or gesture ~= nil then return false end
 
     gesture = {
         kind = "pan",
@@ -634,6 +634,7 @@ local function pan_begin()
         y = 0,
         scroll_x = state.overview_scroll.x,
         scroll_y = state.overview_scroll.y,
+        initial_visibility = core.visible_areas(state, state.view_area or state.area, config),
     }
     if not state.overview then
         state.drag = { x = 0, y = 0 }
@@ -665,13 +666,21 @@ local function pan_end(cancelled, quick_direction)
     if not g or g.kind ~= "pan" then return end
     gesture = nil
 
+    if core.pan_at_start(g.x, g.y) then quick_direction = nil end
+
     if g.state.overview then
         if cancelled then
             g.state.overview_scroll.x = g.scroll_x
             g.state.overview_scroll.y = g.scroll_y
         else
-            local target = quick_direction and core.focus(g.state, quick_direction)
-                or core.nearest_window(g.state, g.state.view_area, config)
+            local target
+            if quick_direction then
+                target = core.focus(g.state, quick_direction)
+                    or core.nearest_window(g.state, g.state.view_area, config)
+            else
+                target = core.most_revealed_window(g.state, g.state.view_area, config,
+                    g.initial_visibility, g.x, g.y)
+            end
             if target then
                 g.state.focused_id = target
                 g.state.overview_follow = true
@@ -683,7 +692,8 @@ local function pan_end(cancelled, quick_direction)
             if quick_direction then
                 target = core.neighbor(g.state, quick_direction)
             else
-                target = core.nearest_window(g.state, g.state.area, config)
+                target = core.most_revealed_window(g.state, g.state.area, config,
+                    g.initial_visibility, g.x, g.y)
             end
         end
         -- Focus callbacks must see the settled grid before warping the cursor.
@@ -813,6 +823,10 @@ _G.__omalattice_reload_config = function(fresh)
     if type(fresh) ~= "table" then return false end
     for key in pairs(config) do config[key] = nil end
     for key, value in pairs(fresh) do config[key] = value end
+    local hover = rawget(_G, "__omalattice_hover")
+    if type(hover) == "table" and hover.set_settings then
+        hover.set_settings(config.hover_focus_delay, config.hover_focus_peeks)
+    end
     pcall(hl.dispatch, hl.dsp.layout("refresh"))
     return true
 end

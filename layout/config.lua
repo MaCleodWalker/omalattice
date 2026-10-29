@@ -17,6 +17,10 @@ return {
     -- immediate follow_mouse behaviour.
     hover_focus_delay = 150,
 
+    -- Focus neighboring windows when the pointer rests on their visible peeks.
+    -- Disable to require a click to focus windows on peeks.
+    hover_focus_peeks = true,
+
     -- Number of fingers for the touchpad focus swipes: up/down always move
     -- focus, and left/right do too while an Omalattice workspace is active.
     gesture_fingers = 3,

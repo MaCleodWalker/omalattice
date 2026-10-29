@@ -64,6 +64,7 @@ file:close()
 assert(status:find('"values":{', 1, true) and status:find('"gap_x":20', 1, true), "status misses the override")
 assert(status:find('"defaults":{', 1, true) and status:find('"gap_x":12', 1, true), "status misses the defaults")
 assert(status:find('"workspace_swipe":false', 1, true), "status misses a boolean")
+assert(status:find('"hover_focus_peeks":true', 1, true), "status misses the peek-hover setting")
 assert(status:find('"width_steps":[0.5,0.67,0.85,1]', 1, true), "status misses a list")
 
 os.getenv = original_getenv
